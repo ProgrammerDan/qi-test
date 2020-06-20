@@ -1,7 +1,9 @@
 Run with: 
 
 objectRadius =       new Apfloat(".0002", PRECISION); // .2m radius
+
 objectRotationRate = new Apfloat(3589000d/60d, PRECISION); // He proposes 3589krpm as enough to "hide" the earth, converted to rps
+
 objectResolution =   new Apfloat(".00002", PRECISION); // .00002km or .02 m (2cm, 20mm)
 
 Precision is 1024 places in Apfloat.
