@@ -56,7 +56,7 @@ public class RindlerHorizonHidingViaAngularMotion {
 	 * sphere. I do not look for relativistic effects, e.g. you can construct a rate of rotation and radius that will move faster then light
 	 * and I will not stop you.
 	 */
-	private Apfloat objectRadius =       new Apfloat(".0002", PRECISION); // .0001km or .1 m (10 cm)
+	private Apfloat objectRadius =       new Apfloat(".0002", PRECISION); // .0002km or .2 m (20 cm)
 	//private Apfloat objectRotationRate = new Apfloat(30000d/60d, PRECISION); // rotations per second -- according to MM, 23krpm should "hide" some of sun from rotating object. Bumping to 30k. 
 	//private Apfloat objectRotationRate = new Apfloat(30d/60d, PRECISION); // terrestrial rotations of 30rpm -- should result in no stellar hiding.
 	private Apfloat objectRotationRate = new Apfloat(3589000d/60d, PRECISION); // He proposes 3589krpm as enough to "hide" the earth
@@ -70,7 +70,7 @@ public class RindlerHorizonHidingViaAngularMotion {
 	 */
 	//private Apfloat objectResolution =   new Apfloat(".000001", PRECISION); // .000001km or .001 m (.1cm, 1mm)
 	//private Apfloat objectResolution =   new Apfloat(".00001", PRECISION); // .00001km or .01 m (1cm, 10mm)
-	private Apfloat objectResolution =   new Apfloat(".00002", PRECISION); // .00005km or .05 m (5cm, 50mm)
+	private Apfloat objectResolution =   new Apfloat(".00002", PRECISION); // .00002km or .02 m (2cm, 20mm)
 
 	// At present, object Density has no bearing, as we are determining the impact of stellar masses on us, not the mutual gravitation.
 	//private Apfloat objectDensity =      new Apfloat("1800000000000", PRECISION); // carbon fiber kg/km3
