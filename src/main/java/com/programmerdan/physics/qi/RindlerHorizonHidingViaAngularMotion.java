@@ -995,30 +995,30 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 				float g = 0.5f;
 				float b = 0.5f;
 				if (aggregateQIAcceleration[index][0] != null) {
-					if (aggregateQIAcceleration[index][0].compareTo(newtonAggregateGravityAccelerationScale) > 0) { // our current agg is above newton.
-						Apfloat rel = newtonAggregateGravityAccelerationScale.divide(aggregateQIAcceleration[index][0]); // newton / current; value [1, 0] where as current grows larger then newton, value trends to 0. 
-						r -= (rel.floatValue() / 2);
+					if (aggregateQIAcceleration[index][0].compareTo(newtonGravAccelerationScale[0]) > 0) { // our current agg is above newton.
+						Apfloat rel = newtonGravAccelerationScale[0].divide(aggregateQIAcceleration[index][0]); // newton / current; value [1, 0] where as current grows larger then newton, value trends to 0. 
+						r -= 0.5f - (rel.floatValue() / 2f);
 					} else {
-						Apfloat rel = aggregateQIAcceleration[index][0].divide(newtonAggregateGravityAccelerationScale); // current / newton; value [1, 0] where as current is closer to newton, value trends to 1; more distance from newton, value trends to 0.
-						r += (rel.floatValue() / 2);
+						Apfloat rel = aggregateQIAcceleration[index][0].divide(newtonGravAccelerationScale[0]); // current / newton; value [1, 0] where as current is closer to newton, value trends to 1; more distance from newton, value trends to 0.
+						r += 0.5f - (rel.floatValue() / 2f);
 					}
 				}
 				if (aggregateQIAcceleration[index][1] != null) {
-					if (aggregateQIAcceleration[index][1].compareTo(newtonAggregateGravityAccelerationScale) > 0) { // our current agg is above newton.
-						Apfloat rel = newtonAggregateGravityAccelerationScale.divide(aggregateQIAcceleration[index][1]); // newton / current; value [1, 0] where as current grows larger then newton, value trends to 0. 
-						g -= (rel.floatValue() / 2);
+					if (aggregateQIAcceleration[index][1].compareTo(newtonGravAccelerationScale[1]) > 0) { // our current agg is above newton.
+						Apfloat rel = newtonGravAccelerationScale[1].divide(aggregateQIAcceleration[index][1]); // newton / current; value [1, 0] where as current grows larger then newton, value trends to 0. 
+						g -= 0.5f - (rel.floatValue() / 2f);
 					} else {
-						Apfloat rel = aggregateQIAcceleration[index][1].divide(newtonAggregateGravityAccelerationScale); // current / newton; value [1, 0] where as current is closer to newton, value trends to 1; more distance from newton, value trends to 0.
-						g += (rel.floatValue() / 2);
+						Apfloat rel = aggregateQIAcceleration[index][1].divide(newtonGravAccelerationScale[1]); // current / newton; value [1, 0] where as current is closer to newton, value trends to 1; more distance from newton, value trends to 0.
+						g += 0.5f - (rel.floatValue() / 2f);
 					}
 				}
 				if (aggregateQIAcceleration[index][2] != null) {
-					if (aggregateQIAcceleration[index][2].compareTo(newtonAggregateGravityAccelerationScale) > 0) { // our current agg is above newton.
-						Apfloat rel = newtonAggregateGravityAccelerationScale.divide(aggregateQIAcceleration[index][2]); // newton / current; value [1, 0] where as current grows larger then newton, value trends to 0. 
-						b -= (rel.floatValue() / 2);
+					if (aggregateQIAcceleration[index][2].compareTo(newtonGravAccelerationScale[2]) > 0) { // our current agg is above newton.
+						Apfloat rel = newtonGravAccelerationScale[2].divide(aggregateQIAcceleration[index][2]); // newton / current; value [1, 0] where as current grows larger then newton, value trends to 0. 
+						b -= 0.5f - (rel.floatValue() / 2f);
 					} else {
-						Apfloat rel = aggregateQIAcceleration[index][2].divide(newtonAggregateGravityAccelerationScale); // current / newton; value [1, 0] where as current is closer to newton, value trends to 1; more distance from newton, value trends to 0.
-						b += (rel.floatValue() / 2);
+						Apfloat rel = aggregateQIAcceleration[index][2].divide(newtonGravAccelerationScale[2]); // current / newton; value [1, 0] where as current is closer to newton, value trends to 1; more distance from newton, value trends to 0.
+						b += 0.5f - (rel.floatValue() / 2f);
 					}
 				}
 				QIPlatform.uiQueue.offer(new QIPlatform.QIVisualizationKernel((double) x + stepsOnEdge, (double) y + stepsOnEdge, (double) z + stepsOnEdge, r, g, b, 1.0f / (float) (stepsOnEdge * 2), aggregateQIPaths[index]));

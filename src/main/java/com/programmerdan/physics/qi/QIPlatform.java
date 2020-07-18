@@ -144,7 +144,7 @@ public class QIPlatform {
 				apConstantsG, PRECISION);
 		
 		if (Boolean.TRUE.equals(apShowVisualization)) {
-			int dotSize = 4;
+			int dotSize = 10;
 			int border = 20;
 			int displaysOnAnEdge = 2;
 			
