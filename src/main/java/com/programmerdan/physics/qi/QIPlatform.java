@@ -1,13 +1,23 @@
 package com.programmerdan.physics.qi;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import javax.swing.JFrame;
+import javax.swing.JPanel;
 
 import org.apfloat.Apfloat;
 
@@ -21,6 +31,7 @@ public class QIPlatform {
 	
 	private static int multiProcess = Runtime.getRuntime().availableProcessors() * 2 < 1 ? 2 : Runtime.getRuntime().availableProcessors() * 2;
 	protected static ThreadPoolExecutor processHandler = (ThreadPoolExecutor) Executors.newFixedThreadPool(multiProcess);
+	protected static BlockingQueue<QIVisualizationKernel> uiQueue = new LinkedBlockingQueue<>();
 	
 	public static void main(String[] args) {
 		if (args.length > 0 && "angular".equalsIgnoreCase(args[0])) {
@@ -108,9 +119,12 @@ public class QIPlatform {
 		Apfloat apEarthOffsetAngle = safeSet(props, "earth.Rotation", earthOffsetAngle, "0");
 		
 		String constantsG = props.getProperty("constants.G", "6.67430e-20");
-		System.out.println("Constants: G (gravitational constant): " + constantsG + "km^3*kg^-1*s^-2");
+		System.out.println("Constants:\n G (gravitational constant): " + constantsG + "km^3*kg^-1*s^-2");
 		Apfloat apConstantsG = safeSet(props, "constants.G", constantsG, "6.67430e-20");
 		
+		String showVisualization = props.getProperty("visualize", "true");
+		System.out.println("Simulation Constraints:\n Visualization: " + showVisualization);
+		Boolean apShowVisualization = safeSetBoolean(props, "visualize", showVisualization, "true");
 		
 		if (args.length > 1) {
 			try {
@@ -129,13 +143,44 @@ public class QIPlatform {
 				apEarthRadius, apEarthDensity, apEarthOrbitalPosition, apEarthOffsetAngle,
 				apConstantsG, PRECISION);
 		
-		processHandler.execute(rHHVAM); // ok let's go.
-		while (processHandler.getActiveCount() > 0) {
-			try {
-				Thread.sleep(0);
-			} catch (Exception e){}
+		if (Boolean.TRUE.equals(apShowVisualization)) {
+			int dotSize = 4;
+			int border = 20;
+			int displaysOnAnEdge = 2;
+			
+			int size = apResolution.intValue() * 2 * displaysOnAnEdge * dotSize + border * 3; // four displays, 3x3 pixel per display and 60 pixels border
+			
+			JFrame frame = new JFrame("QIPlatform: Rindler Horizon Hiding Via Angular Motion visualization");
+			QIVisualization viz = new QIVisualization(border, dotSize, apResolution.intValue() * 2 * dotSize);
+			frame.add(viz, BorderLayout.CENTER);
+			viz.setSize(size * 2, size * 2);
+			frame.setSize(size * 2, size * 2);
+			frame.setVisible(true);
+			frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+			viz.setBackground(Color.BLACK);
+			
+			viz.setupBuffer();
+			frame.setBackground(Color.BLACK);
+
+			processHandler.execute(rHHVAM); // ok let's go.
+			
+			while (processHandler.getActiveCount() > 0) {
+				try {
+					viz.repaint();
+					Thread.sleep(15l);
+				} catch (Exception e){}
+			}
+		} else {
+			processHandler.execute(rHHVAM); // ok let's go.
+			
+			while (processHandler.getActiveCount() > 0) {
+				try {
+					Thread.sleep(0l);
+				} catch (Exception e){}
+			}
 		}
 		processHandler.shutdown(); // ok, it's all on queue, now let's wait.
+		
 		while (true) {
 			try {
 				if (!processHandler.awaitTermination(60l, TimeUnit.MINUTES)) {
@@ -144,7 +189,6 @@ public class QIPlatform {
 					break;
 				}
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
@@ -162,5 +206,103 @@ public class QIPlatform {
 			props.setProperty(propKey, safeValue);
 		}
 		return value;
+	}
+	
+	public Boolean safeSetBoolean(Properties props, String propKey, String propValue, String safeValue) {
+		Boolean value = null;
+		try {
+			value = Boolean.parseBoolean(propValue);
+			props.setProperty(propKey, propValue);
+		} catch (Exception e) {
+			value = Boolean.parseBoolean(safeValue);
+			props.setProperty(propKey,  safeValue);
+		}
+		return value;
+	}
+	
+	public static class QIVisualizationKernel {
+		double x;
+		double y;
+		double z;
+		
+		float r;
+		float g;
+		float b;
+		float a;
+		
+		String[] paths;
+		
+		public QIVisualizationKernel(double x, double y, double z, float r, float g, float b, float a, String[] paths) {
+			this.x = x;
+			this.y = y;
+			this.z = z;
+			
+			this.r = r;
+			this.g = g;
+			this.b = b;
+			this.a = a;
+			
+			this.paths = paths;
+		}
+	}
+	
+	public class QIVisualization extends JPanel {
+		
+		private int border;
+		private int expansion;
+		private int panel;
+		private BufferedImage buffer;
+		
+		public QIVisualization(int border, int expansion, int panel) {
+			this.border = border;
+			this.expansion = expansion;
+			this.panel = panel;
+		}
+		
+		public void setupBuffer() {
+			buffer = new BufferedImage(this.getWidth(), this.getHeight(), BufferedImage.TYPE_INT_ARGB);
+			buffer.createGraphics().setBackground(this.getBackground());
+		}
+		
+		@Override
+		protected void paintComponent(Graphics g) {
+			super.paintComponent(g);
+			
+			if (buffer != null) {
+				Graphics2D g2 = buffer.createGraphics();
+				long start = System.currentTimeMillis();
+				while ( !uiQueue.isEmpty() && (System.currentTimeMillis() - start < 15l) ) {
+					QIVisualizationKernel kernel = uiQueue.poll();
+					if (kernel == null) break;
+					int xOff = border;
+					int yOff = border;
+					Color kernelColor = new Color(kernel.r, kernel.g, kernel.b, kernel.a);
+					g2.setColor(kernelColor);
+					
+					// x - y 
+					g2.fillRect(xOff + (int) kernel.x * this.expansion, yOff + (int) kernel.y * this.expansion, this.expansion, this.expansion);
+					
+					xOff += border + panel;
+					// x - z
+					g2.fillRect(xOff + (int) kernel.x * this.expansion, yOff + (int) kernel.z * this.expansion, this.expansion, this.expansion);
+					
+					yOff += border + panel;
+					// y - z
+					g2.fillRect(xOff + (int) kernel.y * this.expansion, yOff + (int) kernel.z * this.expansion, this.expansion, this.expansion);
+					
+					xOff -= border + panel;
+					g2.clearRect(xOff, yOff, panel, panel+border);
+					
+					g2.setColor(Color.WHITE);
+					g2.drawString(String.format("%3.0f", kernel.x), xOff, yOff+(panel / 4));
+					g2.drawString(String.format("%3.0f", kernel.y), xOff, yOff+(panel / 2));
+					g2.drawString(String.format("%3.0f", kernel.z), xOff, yOff+(int)(panel*3d / 4d));
+					for (int c = 0; c < kernel.paths.length; c++) {
+						g2.drawString(String.format("%s", kernel.paths[c]), xOff, yOff+panel + (panel / 4) * c);
+					}
+				}
+			}
+			g.drawImage(buffer, 0, 0, this);
+		}
 	}
 }

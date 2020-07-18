@@ -21,6 +21,9 @@ import org.apfloat.*;
  * 6) The results are in effect the analytic estimation of gravitation impact reduction; if sufficiently large, it should be
  *    experimentally confirmable.
  *    
+ *    TODO: Consider Lorentz contraction at high edge velocity. Not sure how to do these computations in Non-Euclidean space, though.
+ *     But, this may be something I need to consider anyway, as I'd like to imagine all this in the context of Relativity, anyway.
+ *    
  * This specific simulation uses estimations, and will be less accurate then a purely mathematic solution. Such a solution is no longer
  * accessible to me, but the math of a computation model is accessible, so I've done that instead.
  * Specifically, we do the following:
@@ -200,6 +203,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 										"Also Half Cap (bth)", "Also Majority Cap (bth)", "Also Minority Cap (bth)", "Only Cap (Inc)", "Cap and Lens (Inc)"};
 	AtomicLong currentTakenSteps = new AtomicLong(0l);
 	AtomicLong currentDoneSteps = new AtomicLong(0l);
+	long stepsOnEdge = 0l;
 	long totalSteps = 0l;
 
 	String[] sphereName = new String[]{"Earth", "Moon", "Sun"};
@@ -207,6 +211,14 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 	Apfloat[] sphereRadius = new Apfloat[]{ earthRadius, moonRadius, sunRadius };
 	Apfloat[] sphereDensity = new Apfloat[]{ earthDensity, moonDensity, sunDensity };
 	Apfloat[] sphereMass = new Apfloat[]{ earthMass, moonMass, sunMass };
+	
+	Apfloat[][] aggregateQIAcceleration = null;
+	String[][] aggregateQIPaths = null;
+
+	Location newtonAggregateGravityAcceleration = new Location(Apfloat.ZERO, Apfloat.ZERO, Apfloat.ZERO);
+	Apfloat newtonAggregateGravityAccelerationScale = null;
+	Location[] newtonGravAcceleration = new Location[] { new Location(Apfloat.ZERO, Apfloat.ZERO, Apfloat.ZERO), new Location(Apfloat.ZERO, Apfloat.ZERO, Apfloat.ZERO), new Location(Apfloat.ZERO, Apfloat.ZERO, Apfloat.ZERO) };
+	Apfloat[] newtonGravAccelerationScale = new Apfloat[3];
 	
 	public void run() {
 		for (int i = 0; i < 17; i++) {
@@ -246,7 +258,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 		 */
 		
 		// we're set up, let's do analytics.
-		long stepsOnEdge = objectRadius.divide(objectResolution).longValue();
+		stepsOnEdge = objectRadius.divide(objectResolution).longValue();
 		totalSteps = stepsOnEdge*2*stepsOnEdge*2*stepsOnEdge*2;
 		
 		//Apfloat resolutionMass = ApfloatMath.pow(objectRadius,3l).multiply(objectDensity); // results in kg, but we don't need it right now.
@@ -257,6 +269,41 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 		sphereRadius = new Apfloat[]{ earthRadius, moonRadius, sunRadius };
 		sphereDensity = new Apfloat[]{ earthDensity, moonDensity, sunDensity };
 		sphereMass = new Apfloat[]{ earthMass, moonMass, sunMass };
+
+		if (  ((long) ((int)totalSteps)) == totalSteps) {
+			aggregateQIAcceleration = new Apfloat[(int)totalSteps][sphereName.length];
+			aggregateQIPaths = new String[(int)totalSteps][sphereName.length];
+		} else {
+			System.out.println("Warning: Output space is too dense to allow point tracking.");
+		}
+		
+		// Precompute Newtonian for visualization purposes.
+		for (int i = 0; i < sphereName.length; i++) {
+			Vector accelLine = Vector.betweenPoints(objectLocation, sphereCenter[i]);
+			Apfloat a = constantG.multiply(sphereMass[i]).divide(accelLine.magnitude.multiply(accelLine.magnitude));
+			Location contribution = new Location(
+					accelLine.unitVector.x.multiply(a),
+					accelLine.unitVector.y.multiply(a),
+					accelLine.unitVector.z.multiply(a));
+			Apfloat gx = newtonAggregateGravityAcceleration.x.add(contribution.x);
+			Apfloat gy = newtonAggregateGravityAcceleration.y.add(contribution.y);
+			Apfloat gz = newtonAggregateGravityAcceleration.z.add(contribution.z);
+			
+			newtonAggregateGravityAcceleration = new Location(gx, gy, gz);
+			
+			gx = newtonGravAcceleration[i].x.add(contribution.x);
+			gy = newtonGravAcceleration[i].y.add(contribution.y);
+			gz = newtonGravAcceleration[i].z.add(contribution.z);
+			
+			newtonGravAcceleration[i] = new Location(gx, gy, gz);
+			newtonGravAccelerationScale[i] = a;
+		}
+		
+		newtonAggregateGravityAccelerationScale = MATH.sqrt(
+				newtonAggregateGravityAcceleration.x.multiply(newtonAggregateGravityAcceleration.x).add(
+				newtonAggregateGravityAcceleration.y.multiply(newtonAggregateGravityAcceleration.y)).add(
+				newtonAggregateGravityAcceleration.z.multiply(newtonAggregateGravityAcceleration.z))
+			);
 		
 		System.out.println("Object is at " + objectLocation);
 		System.out.println("Earth is at " + earthLocation);
@@ -295,9 +342,13 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 					 */
 					
 					final Location midPoint = new Location(pointX, pointY, pointZ);
+					final int xX = (int) stepX;
+					final int yY = (int) stepY;
+					final int zZ = (int) stepZ;
 					if (midPoint.isInsideSphere(objectLocation, objectRadiusSquared)) {
 						QIPlatform.processHandler.execute(new Runnable() {
 							public void run() {
+								StringBuilder paths = new StringBuilder();
 								currentTakenSteps.incrementAndGet();
 								// it's inside!
 								/*
@@ -375,8 +426,8 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 								 * 
 								 */
 								if (!AsqBsqCsqRoot.equals(Apfloat.ZERO)) { 
-									
 									for (int i = 0; i < sphereName.length; i++) {
+										paths = new StringBuilder();										
 										/*
 										 * Consider based on the plane and unit vector, using the point-sphere intersection point, which might be outside
 										 * the sphere, is this sphere on the "acceleration" side of the plane? or, the opposite side.
@@ -447,7 +498,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 										Apfloat sphereInnerEdge = sphereDistance.subtract(sphereRadius[i]);
 										Apfloat sphereOuterEdge = sphereDistance.add(sphereRadius[i]);
 										if (rindlerHorizonDistance.compareTo(sphereOuterEdge) >= 0) {
-											pathsUsed[0].incrementAndGet();
+											pathsUsed[0].incrementAndGet(); paths.append(",0");
 											/* 1) if sphere is fully inside rindler horizon, include mass. */
 											impactMass = sphereMass[i];
 											impactCenter = sphereS;
@@ -469,7 +520,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 											Location fromPlaneToSphereUnitVector = fromPlaneToSphere.unitVector;
 											
 											if (sphereRadius[i].compareTo(absCompute_d) <= 0 && centerOfRotationPointingUnitVector.isEqual(fromPlaneToSphereUnitVector, PRECISION / 2)) {
-												pathsUsed[1].incrementAndGet();
+												pathsUsed[1].incrementAndGet(); paths.append(",1");
 												/*2) If sphere is fully above plane, include mass.*/ 
 												/* Or, sphere does not intersect plane and is above the plane -- the pointing vector of plane and vector from plane to sphere center are in same direction. */
 												impactMass = sphereMass[i];
@@ -477,7 +528,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 											} else if (rindlerHorizonDistance.compareTo(sphereInnerEdge) <= 0) {
 												/* 3) if sphere is fully outside rindler horizon, look for sphere-plane intersection. */
 												if (sphereRadius[i].compareTo(absCompute_d) <= 0 && !centerOfRotationPointingUnitVector.isEqual(fromPlaneToSphereUnitVector, PRECISION / 2)) {
-													pathsUsed[2].incrementAndGet();
+													pathsUsed[2].incrementAndGet(); paths.append(",2");
 													/* a) If sphere is fully below plane, do not include mass. */
 													/* Or, sphere does not intersect plane and is below the plane -- the pointing vector of plane and vector from plane to sphere center are inverted (not equal). */
 													impactMass = null;
@@ -487,7 +538,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 													/* Or, we know the sphere is fully outside the rindler horizon and intersects the plane, so find the sphere-plane cap that is above the plane */
 													Apfloat intersectRadius = MATH.sqrt(sphereRSq.subtract(compute_d.multiply(compute_d)));
 													if (intersectRadius.equalDigits(sphereRadius[i]) > PRECISION/2) {
-														pathsUsed[3].incrementAndGet();
+														pathsUsed[3].incrementAndGet(); paths.append(",3");
 														// Special case, "bysection" so we can just do 50% of volume;
 														/*
 														 * 3 * ( 2R - R )^2 / 4 * ( 3R - R ) = 3 * ( R ^2 ) / 4 * (2 R ) = 3 / 8 * R
@@ -536,14 +587,14 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 														
 														impactMass = volume.multiply(sphereDensity[i]);
 														if (vectorEquiv) {
-															pathsUsed[4].incrementAndGet();
+															pathsUsed[4].incrementAndGet(); paths.append(",4");
 															// move along unit vector
 															impactCenter = new Location(
 																	sphereS.x.add(fromPlaneToSphereUnitVector.x.multiply(centroid)),
 																	sphereS.y.add(fromPlaneToSphereUnitVector.y.multiply(centroid)),
 																	sphereS.z.add(fromPlaneToSphereUnitVector.z.multiply(centroid)));
 														} else {
-															pathsUsed[5].incrementAndGet();
+															pathsUsed[5].incrementAndGet(); paths.append(",5");
 															// move against unit vector.
 															impactCenter = new Location(
 																	sphereS.x.subtract(fromPlaneToSphereUnitVector.x.multiply(centroid)), // distance from sphere center; we use the inverse of the unit vector but reduce to subtraction.
@@ -602,7 +653,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 														);
 												
 												if (sphereRadius[i].compareTo(absCompute_d) <= 0 && !centerOfRotationPointingUnitVector.isEqual(fromPlaneToSphereUnitVector, PRECISION / 2)) {
-													pathsUsed[6].incrementAndGet();
+													pathsUsed[6].incrementAndGet(); paths.append(",6");
 													/* a) If sphere is fully below plane, include fraction of mass based on sphere-sphere intersection */
 													// Or, sphere is fully below the plane, but intersects the Rindler horizon, so compute the lens that contributes mass.
 													/*
@@ -661,7 +712,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 													// So contrasting with prior use of this spherical cap computations, we IGNORE the bit that's "visible" due to sphere-plane interaction. We INCLUDE the bit that is "below" the accel plane.
 													// This is because we've determined above this mass is inside the Rindler horizon; but the bit above the plane is already accounted for by standard cap computation, which we need to include.
 													if (lensCircleRadius.compareTo(equivAbsCompute_d) <= 0 && centerOfRotationPointingUnitVector.isEqual(fromPlaneToEquivUnitVector, PRECISION / 2)) {
-														pathsUsed[7].incrementAndGet();
+														pathsUsed[7].incrementAndGet(); paths.append(",7");
 														/* If lens-sphere is fully above plane, do not include mass. */
 														/* Or, lens-sphere does not intersect plane and is above the plane -- the pointing vector of plane and vector from plane to equivsphere center are equal. */
 														
@@ -671,7 +722,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 														addMass = null;
 														addCenter = null;
 													} else if (lensCircleRadius.compareTo(equivAbsCompute_d) <= 0 && !centerOfRotationPointingUnitVector.isEqual(fromPlaneToEquivUnitVector, PRECISION / 2)) {
-														pathsUsed[8].incrementAndGet();
+														pathsUsed[8].incrementAndGet(); paths.append(",8");
 														/* If lensesphere is fully below plane, include all its mass. */
 														/* Or, lensesphere does not intersect plane and is below the plane -- the pointing vector of plane and vector from plane to equivsphere center are inverted. */
 														
@@ -685,7 +736,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 														Apfloat intersectEquivRadius = MATH.sqrt(lensCircleRadius.multiply(lensCircleRadius).subtract(equivCompute_d.multiply(equivCompute_d)));
 		
 														if (intersectEquivRadius.equalDigits(lensCircleRadius) > PRECISION/2) {
-															pathsUsed[9].incrementAndGet();
+															pathsUsed[9].incrementAndGet(); paths.append(",9");
 															// Special case, "bysection" so we can just do 50% of volume;
 															/*
 															 * 3 * ( 2R - R )^2 / 4 * ( 3R - R ) = 3 * ( R ^2 ) / 4 * (2 R ) = 3 / 8 * R
@@ -737,14 +788,14 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 															
 															addMass = volume.multiply(sphereDensity[i]); // density of lens, and density of equivalent sphere, is the same as sphere's volume is same as lens' volume.
 															if (vectorEquiv) {
-																pathsUsed[10].incrementAndGet();
+																pathsUsed[10].incrementAndGet(); paths.append(",10");
 																// moving against the planetoequivunitvector 
 																addCenter = new Location(
 																		lensCenter.x.subtract(fromPlaneToEquivUnitVector.x.multiply(centroid)), // distance from sphere center; we use the inverse of the unit vector but reduce to subtraction.
 																		lensCenter.y.subtract(fromPlaneToEquivUnitVector.y.multiply(centroid)),
 																		lensCenter.z.subtract(fromPlaneToEquivUnitVector.z.multiply(centroid)));
 															} else {
-																pathsUsed[11].incrementAndGet();
+																pathsUsed[11].incrementAndGet(); paths.append(",11");
 																// moving with the planetoequivunitvector 
 																addCenter = new Location(
 																		lensCenter.x.add(fromPlaneToEquivUnitVector.x.multiply(centroid)), // distance from sphere center; we use the unit vector.
@@ -764,7 +815,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 													
 													Apfloat intersectRadius = MATH.sqrt(sphereRSq.subtract(compute_d.multiply(compute_d)));
 													if (intersectRadius.equalDigits(sphereRadius[i]) > PRECISION/2) {
-														pathsUsed[12].incrementAndGet();
+														pathsUsed[12].incrementAndGet(); paths.append(",12");
 														// Special case, "bysection" so we can just do 50% of volume;
 														/*
 														 * 3 * ( 2R - R )^2 / 4 * ( 3R - R ) = 3 * ( R ^2 ) / 4 * (2 R ) = 3 / 8 * R
@@ -813,14 +864,14 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 														
 														capMass = volume.multiply(sphereDensity[i]);
 														if (vectorEquiv) {
-															pathsUsed[13].incrementAndGet();
+															pathsUsed[13].incrementAndGet(); paths.append(",13");
 															// move along unit vector
 															capCenter = new Location(
 																	sphereS.x.add(fromPlaneToSphereUnitVector.x.multiply(centroid)),
 																	sphereS.y.add(fromPlaneToSphereUnitVector.y.multiply(centroid)),
 																	sphereS.z.add(fromPlaneToSphereUnitVector.z.multiply(centroid)));
 														} else {
-															pathsUsed[14].incrementAndGet();
+															pathsUsed[14].incrementAndGet(); paths.append(",14");
 															// move against unit vector.
 															capCenter = new Location(
 																	sphereS.x.subtract(fromPlaneToSphereUnitVector.x.multiply(centroid)), // distance from sphere center; we use the inverse of the unit vector but reduce to subtraction.
@@ -831,11 +882,11 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 													
 													// now we have an capmass/center from the real sphere cap; and an addmass/center from the lens equiv sphere cap. let's join tem.
 													if (addMass == null) {
-														pathsUsed[15].incrementAndGet(); 
+														pathsUsed[15].incrementAndGet(); paths.append(",15");
 														impactMass = capMass;
 														impactCenter = capCenter;
 													} else {
-														pathsUsed[16].incrementAndGet(); 
+														pathsUsed[16].incrementAndGet(); paths.append(",16");
 														/*
 														 * Note: from https://en.wikipedia.org/wiki/Center_of_mass
 														 * R = (1 / (m1+m2)) * (m1*r1+m2*r2) where R is vector point; r1 is vector center of mass 1, r2 is vector center of mass 2.
@@ -853,7 +904,9 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 										
 										// OK: now we have impactMass / impactCenter. Let's generate the grav impact.
 										if (impactMass != null) {
-											contributeAcceleration(midPoint, i, impactMass, impactCenter);
+											contributeAcceleration(xX, yY, zZ, paths.substring(1), midPoint, i, impactMass, impactCenter);
+										} else {
+											contributeAcceleration(xX, yY, zZ, paths.substring(1), midPoint, i, null, null);
 										}
 									}
 								}
@@ -872,28 +925,18 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 	}
 	
 	public void showFinalProgress() {
-		Location newtonAggregateGravityAcceleration = new Location(Apfloat.ZERO, Apfloat.ZERO, Apfloat.ZERO);
-		Location[] newtonGravAcceleration = new Location[] { new Location(Apfloat.ZERO, Apfloat.ZERO, Apfloat.ZERO), new Location(Apfloat.ZERO, Apfloat.ZERO, Apfloat.ZERO), new Location(Apfloat.ZERO, Apfloat.ZERO, Apfloat.ZERO) };
-		
-		for (int i = 0; i < sphereName.length; i++) {
-			Vector accelLine = Vector.betweenPoints(objectLocation, sphereCenter[i]);
-			Apfloat a = constantG.multiply(sphereMass[i]).divide(accelLine.magnitude.multiply(accelLine.magnitude));
-			Location contribution = new Location(
-					accelLine.unitVector.x.multiply(a),
-					accelLine.unitVector.y.multiply(a),
-					accelLine.unitVector.z.multiply(a));
-			Apfloat gx = newtonAggregateGravityAcceleration.x.add(contribution.x);
-			Apfloat gy = newtonAggregateGravityAcceleration.y.add(contribution.y);
-			Apfloat gz = newtonAggregateGravityAcceleration.z.add(contribution.z);
-			
-			newtonAggregateGravityAcceleration = new Location(gx, gy, gz);
-			
-			gx = newtonGravAcceleration[i].x.add(contribution.x);
-			gy = newtonGravAcceleration[i].y.add(contribution.y);
-			gz = newtonGravAcceleration[i].z.add(contribution.z);
-			
-			newtonGravAcceleration[i] = new Location(gx, gy, gz);
-		}
+		int z = 0;
+		/*for (int x = (int) -stepsOnEdge; x < stepsOnEdge; x++) {
+			System.out.print("[");
+			for (int y = (int) -stepsOnEdge; y < stepsOnEdge; y++) {
+				int index = (int) ((x + stepsOnEdge) + ( (stepsOnEdge * 2) * (y + stepsOnEdge) ) + ( (stepsOnEdge * 2) * (stepsOnEdge * 2) * (z + stepsOnEdge)));
+				System.out.print(String.format("%1d", aggregateQIAccelerationUpdCounts[index]));
+				if (y < stepsOnEdge -1) {
+					System.out.print(",");
+				}
+			}
+			System.out.println("]");
+		}*/
 		
 		Apfloat tmpTakenSteps = new Apfloat(currentTakenSteps.get(), PRECISION);
 		Location tempGravAccel = new Location(aggregateGravityAcceleration.x.divide(tmpTakenSteps),
@@ -914,28 +957,73 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 		}
 	}
 	
-	private synchronized void contributeAcceleration(final Location midPoint, int i, Apfloat impactMass, Location impactCenter) {
+	private synchronized void contributeAcceleration(final int x, final int y, final int z, String paths, final Location midPoint, int i, Apfloat impactMass, Location impactCenter) {
 		// sum up the mass!
 		// So given that we are in a high acceleration environment, I'm going to ignore the 2c^2/|a|O term from QI that
 		// adjusts inertial mass.
 		// a = GM/r^2
-		Vector accelLine = Vector.betweenPoints(midPoint, impactCenter);
-		Apfloat a = constantG.multiply(impactMass).divide(accelLine.magnitude.multiply(accelLine.magnitude));
-		Location contribution = new Location(
-				accelLine.unitVector.x.multiply(a),
-				accelLine.unitVector.y.multiply(a),
-				accelLine.unitVector.z.multiply(a));
-		Apfloat gx = aggregateGravityAcceleration.x.add(contribution.x);
-		Apfloat gy = aggregateGravityAcceleration.y.add(contribution.y);
-		Apfloat gz = aggregateGravityAcceleration.z.add(contribution.z);
+		Apfloat a = null;
+		if (impactMass != null) {
+			Vector accelLine = Vector.betweenPoints(midPoint, impactCenter);
+			a = constantG.multiply(impactMass).divide(accelLine.magnitude.multiply(accelLine.magnitude));
+			Location contribution = new Location(
+					accelLine.unitVector.x.multiply(a),
+					accelLine.unitVector.y.multiply(a),
+					accelLine.unitVector.z.multiply(a));
+			Apfloat gx = aggregateGravityAcceleration.x.add(contribution.x);
+			Apfloat gy = aggregateGravityAcceleration.y.add(contribution.y);
+			Apfloat gz = aggregateGravityAcceleration.z.add(contribution.z);
+	
+			aggregateGravityAcceleration = new Location(gx, gy, gz);
+			
+			
+			gx = gravAcceleration[i].x.add(contribution.x);
+			gy = gravAcceleration[i].y.add(contribution.y);
+			gz = gravAcceleration[i].z.add(contribution.z);
+			
+			gravAcceleration[i] = new Location(gx, gy, gz);
+		} 
 		
-		aggregateGravityAcceleration = new Location(gx, gy, gz);
-		
-		gx = gravAcceleration[i].x.add(contribution.x);
-		gy = gravAcceleration[i].y.add(contribution.y);
-		gz = gravAcceleration[i].z.add(contribution.z);
-		
-		gravAcceleration[i] = new Location(gx, gy, gz);
+		if (aggregateQIAcceleration != null) {
+			int index = (int) ((x + stepsOnEdge) + ( (stepsOnEdge * 2) * (y + stepsOnEdge) ) + ( (stepsOnEdge * 2) * (stepsOnEdge * 2) * (z + stepsOnEdge)));
+			aggregateQIAcceleration[index][i] = a;
+			aggregateQIPaths[index][i] = paths;
+			int count = 0;
+			for (int c = 0; c < aggregateQIPaths[index].length; c++) { count += aggregateQIPaths[index][c] != null ? 1 : 0; }
+			if (count % aggregateQIAcceleration[index].length == 0) { // basically, this one is done now.
+				float r = 0.5f;
+				float g = 0.5f;
+				float b = 0.5f;
+				if (aggregateQIAcceleration[index][0] != null) {
+					if (aggregateQIAcceleration[index][0].compareTo(newtonAggregateGravityAccelerationScale) > 0) { // our current agg is above newton.
+						Apfloat rel = newtonAggregateGravityAccelerationScale.divide(aggregateQIAcceleration[index][0]); // newton / current; value [1, 0] where as current grows larger then newton, value trends to 0. 
+						r -= (rel.floatValue() / 2);
+					} else {
+						Apfloat rel = aggregateQIAcceleration[index][0].divide(newtonAggregateGravityAccelerationScale); // current / newton; value [1, 0] where as current is closer to newton, value trends to 1; more distance from newton, value trends to 0.
+						r += (rel.floatValue() / 2);
+					}
+				}
+				if (aggregateQIAcceleration[index][1] != null) {
+					if (aggregateQIAcceleration[index][1].compareTo(newtonAggregateGravityAccelerationScale) > 0) { // our current agg is above newton.
+						Apfloat rel = newtonAggregateGravityAccelerationScale.divide(aggregateQIAcceleration[index][1]); // newton / current; value [1, 0] where as current grows larger then newton, value trends to 0. 
+						g -= (rel.floatValue() / 2);
+					} else {
+						Apfloat rel = aggregateQIAcceleration[index][1].divide(newtonAggregateGravityAccelerationScale); // current / newton; value [1, 0] where as current is closer to newton, value trends to 1; more distance from newton, value trends to 0.
+						g += (rel.floatValue() / 2);
+					}
+				}
+				if (aggregateQIAcceleration[index][2] != null) {
+					if (aggregateQIAcceleration[index][2].compareTo(newtonAggregateGravityAccelerationScale) > 0) { // our current agg is above newton.
+						Apfloat rel = newtonAggregateGravityAccelerationScale.divide(aggregateQIAcceleration[index][2]); // newton / current; value [1, 0] where as current grows larger then newton, value trends to 0. 
+						b -= (rel.floatValue() / 2);
+					} else {
+						Apfloat rel = aggregateQIAcceleration[index][2].divide(newtonAggregateGravityAccelerationScale); // current / newton; value [1, 0] where as current is closer to newton, value trends to 1; more distance from newton, value trends to 0.
+						b += (rel.floatValue() / 2);
+					}
+				}
+				QIPlatform.uiQueue.offer(new QIPlatform.QIVisualizationKernel((double) x + stepsOnEdge, (double) y + stepsOnEdge, (double) z + stepsOnEdge, r, g, b, 1.0f / (float) (stepsOnEdge * 2), aggregateQIPaths[index]));
+			}
+		}
 	}
 
 	private synchronized void showPartialProgress() {
