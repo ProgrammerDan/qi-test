@@ -125,6 +125,14 @@ public class QIPlatform {
 		String showVisualization = props.getProperty("visualize", "true");
 		System.out.println("Simulation Constraints:\n Visualization: " + showVisualization);
 		Boolean apShowVisualization = safeSetBoolean(props, "visualize", showVisualization, "true");
+
+		String sdotSize = props.getProperty("vis.dotSize", "5");
+		System.out.println(" Dot Size: " + sdotSize);
+		Integer apDotSize = safeSetInteger(props, "vis.dotSize", sdotSize, "5");
+
+		String sborder = props.getProperty("vis.border", "30");
+		System.out.println(" Border Size: " + sborder);
+		Integer apBorder = safeSetInteger(props, "vis.border", sborder, "30");
 		
 		if (args.length > 1) {
 			try {
@@ -144,8 +152,8 @@ public class QIPlatform {
 				apConstantsG, PRECISION);
 		
 		if (Boolean.TRUE.equals(apShowVisualization)) {
-			int dotSize = 10;
-			int border = 20;
+			int dotSize = apDotSize;
+			int border = apBorder;
 			int displaysOnAnEdge = 2;
 			
 			int size = apResolution.intValue() * 2 * displaysOnAnEdge * dotSize + border * 3; // four displays, 3x3 pixel per display and 60 pixels border
@@ -215,6 +223,18 @@ public class QIPlatform {
 			props.setProperty(propKey, propValue);
 		} catch (Exception e) {
 			value = Boolean.parseBoolean(safeValue);
+			props.setProperty(propKey,  safeValue);
+		}
+		return value;
+	}
+
+	public Integer safeSetInteger(Properties props, String propKey, String propValue, String safeValue) {
+		Integer value = null;
+		try {
+			value = Integer.parseInt(propValue);
+			props.setProperty(propKey, propValue);
+		} catch (Exception e) {
+			value = Integer.parseInt(safeValue);
 			props.setProperty(propKey,  safeValue);
 		}
 		return value;
@@ -290,8 +310,9 @@ public class QIPlatform {
 					// y - z
 					g2.fillRect(xOff + (int) kernel.y * this.expansion, yOff + (int) kernel.z * this.expansion, this.expansion, this.expansion);
 					
-					xOff -= border + panel;
-					g2.clearRect(xOff, yOff, panel, panel+border);
+					yOff -= border;
+					xOff -= border + panel + border;
+					g2.clearRect(xOff, yOff, panel+border+border, panel+border+border);
 					
 					g2.setColor(Color.WHITE);
 					g2.drawString(String.format("%3.0f", kernel.x), xOff, yOff+(panel / 4));
