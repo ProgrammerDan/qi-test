@@ -49,6 +49,17 @@ Proposed here: http://www.ptep-online.com/2019/PP-57-05.PDF</description>
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>1.2.1</version>
+        <configuration>
+          <mainClass>com.programmerdan.physics.qi.QIPlatform</mainClass>
+          <arguments>
+            <argument>angular</argument>
+          </arguments>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>
