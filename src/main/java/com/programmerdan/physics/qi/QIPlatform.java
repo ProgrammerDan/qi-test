@@ -2,19 +2,28 @@ package com.programmerdan.physics.qi;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.util.LinkedList;
 import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.Map;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -32,6 +41,10 @@ public class QIPlatform {
 	private static int multiProcess = Runtime.getRuntime().availableProcessors() * 2 < 1 ? 2 : Runtime.getRuntime().availableProcessors() * 2;
 	protected static ThreadPoolExecutor processHandler = (ThreadPoolExecutor) Executors.newFixedThreadPool(multiProcess);
 	protected static BlockingQueue<QIVisualizationKernel> uiQueue = new LinkedBlockingQueue<>();
+	protected static ConcurrentHashMap<Double, List<QIVisualizationKernel>> uiStore = new ConcurrentHashMap<>();
+	protected static ConcurrentHashMap<Double, Point2D> uiFrames = new ConcurrentHashMap<>();
+	
+	protected static PrintStream debugFile = null;
 	
 	public static void main(String[] args) {
 		if (args.length > 0 && "angular".equalsIgnoreCase(args[0])) {
@@ -133,6 +146,22 @@ public class QIPlatform {
 		String sborder = props.getProperty("vis.border", "30");
 		System.out.println(" Border Size: " + sborder);
 		Integer apBorder = safeSetInteger(props, "vis.border", sborder, "30");
+
+		String storeDebug = props.getProperty("debug", "false");
+		System.out.println("Development Aides:\n Debug: " + storeDebug);
+		Boolean apStoreDebug = safeSetBoolean(props, "debug", storeDebug, "false");
+
+		String debugFile = props.getProperty("debug.file", "debug.log");
+		System.out.println(" Debug File: " + debugFile);
+		String apDebugFile = safeSetString(props, "debug.file", debugFile, "debug.log");
+
+		if (apStoreDebug) {
+			try {
+				QIPlatform.debugFile = new PrintStream(new File(apDebugFile));
+			} catch (Exception e) {
+				System.err.println(" Failed to initialize Debug File!");
+			}
+		}
 		
 		if (args.length > 1) {
 			try {
@@ -158,17 +187,22 @@ public class QIPlatform {
 			
 			int size = apResolution.intValue() * 2 * displaysOnAnEdge * dotSize + border * 3; // four displays, 3x3 pixel per display and 60 pixels border
 			
+			int cnt = (size / (int) (apResolution.intValue() * 2 * dotSize));
+			
+			int expansion = (apResolution.intValue() * 2 / cnt) * apResolution.intValue() * 2 * dotSize;
+			
 			JFrame frame = new JFrame("QIPlatform: Rindler Horizon Hiding Via Angular Motion visualization");
 			QIVisualization viz = new QIVisualization(border, dotSize, apResolution.intValue() * 2 * dotSize);
 			frame.add(viz, BorderLayout.CENTER);
-			viz.setSize(size * 2, size * 2);
-			frame.setSize(size * 2, size * 2);
+			viz.setSize(size + expansion, size * 2);
+			frame.setSize(size + expansion, size * 2);
 			frame.setVisible(true);
 			frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 			viz.setBackground(Color.BLACK);
 			
 			viz.setupBuffer();
 			frame.setBackground(Color.BLACK);
+			viz.addMouseListener(viz);
 
 			processHandler.execute(rHHVAM); // ok let's go.
 			
@@ -239,6 +273,18 @@ public class QIPlatform {
 		}
 		return value;
 	}
+
+	public String safeSetString(Properties props, String propKey, String propValue, String safeValue) {
+		String value = null;
+		try {
+			value = propValue;
+			props.setProperty(propKey, propValue);
+		} catch (Exception e) {
+			value = safeValue;
+			props.setProperty(propKey, safeValue);
+		}
+		return value;
+	}
 	
 	public static class QIVisualizationKernel {
 		double x;
@@ -266,7 +312,7 @@ public class QIPlatform {
 		}
 	}
 	
-	public class QIVisualization extends JPanel {
+	public class QIVisualization extends JPanel implements MouseListener {
 		
 		private int border;
 		private int expansion;
@@ -297,33 +343,121 @@ public class QIPlatform {
 					int xOff = border;
 					int yOff = border;
 					Color kernelColor = new Color(kernel.r, kernel.g, kernel.b, kernel.a);
-					g2.setColor(kernelColor);
+					FontMetrics met = g2.getFontMetrics();
+					int row = met.getHeight();
+					int base = met.getMaxDescent();
 					
+					g2.setColor(Color.WHITE);
+					g2.drawString("x - y", xOff + (panel - met.stringWidth("x - y")) / 2, yOff - base);					
+					g2.setColor(kernelColor);
 					// x - y 
 					g2.fillRect(xOff + (int) kernel.x * this.expansion, yOff + (int) kernel.y * this.expansion, this.expansion, this.expansion);
 					
 					xOff += border + panel;
+					
+					g2.setColor(Color.WHITE);
+					g2.drawString("x - z", xOff + (panel - met.stringWidth("x - z")) / 2, yOff - base);
+					g2.setColor(kernelColor);
 					// x - z
 					g2.fillRect(xOff + (int) kernel.x * this.expansion, yOff + (int) kernel.z * this.expansion, this.expansion, this.expansion);
 					
 					yOff += border + panel;
+					
+					g2.setColor(Color.WHITE);
+					g2.drawString("y - z", xOff + (panel - met.stringWidth("y - z")) / 2, yOff - base);
+					g2.setColor(kernelColor);
 					// y - z
 					g2.fillRect(xOff + (int) kernel.y * this.expansion, yOff + (int) kernel.z * this.expansion, this.expansion, this.expansion);
 					
 					yOff -= border;
 					xOff -= border + panel + border;
-					g2.clearRect(xOff, yOff, panel+border+border, panel+border+border);
+					g2.clearRect(xOff, yOff, panel+border+border, row * (4 + kernel.paths.length));
 					
 					g2.setColor(Color.WHITE);
-					g2.drawString(String.format("%3.0f", kernel.x), xOff, yOff+(panel / 4));
-					g2.drawString(String.format("%3.0f", kernel.y), xOff, yOff+(panel / 2));
-					g2.drawString(String.format("%3.0f", kernel.z), xOff, yOff+(int)(panel*3d / 4d));
+					g2.drawString(String.format("%3.0f", kernel.x), xOff, yOff + row);
+					g2.drawString(String.format("%3.0f", kernel.y), xOff, yOff + row*2);
+					g2.drawString(String.format("%3.0f", kernel.z), xOff, yOff + row*3);
 					for (int c = 0; c < kernel.paths.length; c++) {
-						g2.drawString(String.format("%s", kernel.paths[c]), xOff, yOff+panel + (panel / 4) * c);
+						g2.drawString(String.format("%s", kernel.paths[c]), xOff, yOff + row * (4+c));
 					}
+					
+					yOff -= panel;
+					xOff += border + panel + border + panel + border;
+					
+					int mCount = (panel*4+border*3) / panel;
+					
+					int yJog = (((int) kernel.z) % mCount) * panel;
+					int xJog = (((int) kernel.z) / mCount) * panel;
+					
+					g2.setColor(Color.WHITE);
+					g2.drawString("x - y - layers", xOff + (panel - met.stringWidth("x - y - layers")) / 2, yOff - base);
+					float[] kernelRaw = kernelColor.getRGBColorComponents(new float[3]);
+					g2.setColor(new Color(kernelRaw[0], kernelRaw[1], kernelRaw[2]));
+					// x - y 
+					g2.fillRect(xOff + xJog + (int) kernel.x * this.expansion, yOff + yJog + (int) kernel.y * this.expansion, this.expansion, this.expansion);
+					
+					List<QIVisualizationKernel> uiList = null;
+					Point2D uiFrame = null;
+					if (uiStore.containsKey(kernel.z)) {
+						uiList = uiStore.get(kernel.z);
+					} else {
+						uiList = new LinkedList<QIVisualizationKernel>();
+						uiFrame = new Point2D.Float(xOff + xJog, yOff + yJog);
+						//System.out.println("New frame: " + uiFrame.getX() + ", " + uiFrame.getY());
+						uiFrames.put(kernel.z, uiFrame);
+						uiStore.put(kernel.z, uiList);
+					}
+					
+					uiList.add(kernel);
 				}
 			}
 			g.drawImage(buffer, 0, 0, this);
+		}
+
+		@Override
+		public void mouseClicked(MouseEvent e) {
+			int x = e.getX();
+			int y = e.getY();
+			//System.out.println("Clicked onto " + x + ", " + y);
+			for (Map.Entry<Double, Point2D> region : uiFrames.entrySet() ) {
+				Point2D topLeft = region.getValue();
+				//System.out.print("<" + topLeft.getX() + ", " + topLeft.getY() + ">-<" + (topLeft.getX() + this.panel) + ", " + (topLeft.getY() + this.panel) + ">"); 
+				if (x >= topLeft.getX() && x <= (topLeft.getX() + this.panel) &&
+					y >= topLeft.getY() && y <= (topLeft.getY() + this.panel)) {
+					//System.out.println("Clicked into frame " + region.getKey());
+					List<QIVisualizationKernel> store = uiStore.get(region.getKey());
+					if (store != null) {
+						int localX = (x - (int) topLeft.getX()) / this.expansion;
+						int localY = (y - (int) topLeft.getY()) / this.expansion;
+						for (QIVisualizationKernel kernel : store) {
+							if (localX == (int) kernel.x && localY == (int) kernel.y) {
+								System.out.println(String.join(",", kernel.paths));
+							}
+						}
+					}
+				}
+			}
+			
+		}
+
+		@Override
+		public void mousePressed(MouseEvent e) {
+			
+		}
+
+		@Override
+		public void mouseReleased(MouseEvent e) {
+			
+		}
+
+		@Override
+		public void mouseEntered(MouseEvent e) {
+			
+		}
+
+		@Override
+		public void mouseExited(MouseEvent e) {
+			
 		}
 	}
 }
