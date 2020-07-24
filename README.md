@@ -25,13 +25,16 @@ Specifically, we do the following:
 5) All stellar mass (even fractional) "above" the plane (in the direction of acceleration) are not hidden. Portions of stellar mass below the
    acceleration plane and outside the Rindler horizon are hidden, but only the portions actually hidden.
 
-6) No point masses are used! Density*Volume computations where the volumes are computed via sphere-sphere, or sphere-plane, or both are used
-   to determine remaining fractional masses that will interact.
+6) Ultimately I'd like to avoid all point masses! Density times Volume computations where the volumes are computed via sphere-sphere, or sphere-plane, 
+   or both are used to determine remaining fractional masses that will interact.
    This is an important point! In the paper above M. E. McCulloch estimates the various rates of rotation that will hide stellar objects but
-   makes an important mistake, namely, the solution is for a point mass, not a volumetric mass. So, he estimates that the earth will be hidden
+   makes an important over-simplification, namely, the solution is for a point mass, not a volumetric mass. So, he estimates that the earth will be hidden
    at 3589000 rpm; in fact, this will hide ~50% of the earth's mass from some fraction of the sphere, as the Rindler horizon will be just 
    inside the line formed from the center of the object to the center of the earth. Obviously the earth is not a point mass; while such a small
-   error in math can be forgiven it could lead to incorrect predictions about the usefulness of "horizon drives" based on rotation.
+   error in math can be forgiven it could lead to incorrect predictions about the usefulness of "horizon drives" based on rotation. Unfortunately I am
+   fighting an uphill battle to regain rusty math skill so instead of using Gauss's law for gravity which would allow me to properly derive
+   directly gravitation impact from the shapes I've derived, I'm resorting internally to "slightly more accurate" point mass / center of mass computations.
+   These being inaccurate, however, there are some odd effects on the outcomes as a result.
 
 Errors may exist. I've attempted to account for every kind of intersection possible under the contraints of solutions between sphere-sphere, 
 sphere-plane, etc.
