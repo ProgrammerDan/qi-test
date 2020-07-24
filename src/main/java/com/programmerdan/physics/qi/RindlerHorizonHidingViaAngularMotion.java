@@ -103,6 +103,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 	//private static final Apfloat HALF = new Apfloat(".5", PRECISION);
 	private static final Apfloat THREEEIGHTS = new Apfloat(".375", PRECISION);
 	// Note to self: Apfloat.ZERO is always infinite precision. be careful
+	private static final Location ZEROVECTOR = new Location(Apfloat.ZERO, Apfloat.ZERO, Apfloat.ZERO);
 	
 	private Apfloat sunDensity =         new Apfloat("1408000000000", PRECISION); // kg/km3
 	private Apfloat sunRadius =          new Apfloat("695700", PRECISION); // km -- Volumetric mean radius
@@ -502,6 +503,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 											/* 1) if sphere is fully inside rindler horizon, include mass. */
 											impactMass = sphereMass[i];
 											impactCenter = sphereS;
+											contributeFocusedDebug(0, xX, yY, zZ, i, "(IN HORIZ)", sphereMass[i], impactMass, sphereCenter[i], impactCenter, sphereRadius[i], sphereRadius[i], rindlerHorizonDistance, sphereDistance, fromObjectToSphere.unitVector);
 										} else {
 											Apfloat dNumerator = plane_A.multiply(sphereS.x).add(
 													plane_B.multiply(sphereS.y)).add(
@@ -525,6 +527,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 												/* Or, sphere does not intersect plane and is above the plane -- the pointing vector of plane and vector from plane to sphere center are in same direction. */
 												impactMass = sphereMass[i];
 												impactCenter = sphereS;
+												contributeFocusedDebug(1, xX, yY, zZ, i, "(AHEAD ACCEL)", sphereMass[i], impactMass, sphereCenter[i], impactCenter, sphereRadius[i], sphereRadius[i], rindlerHorizonDistance, absCompute_d, centerOfRotationPointingUnitVector);
 											} else if (rindlerHorizonDistance.compareTo(sphereInnerEdge) <= 0) {
 												/* 3) if sphere is fully outside rindler horizon, look for sphere-plane intersection. */
 												if (sphereRadius[i].compareTo(absCompute_d) <= 0 && !centerOfRotationPointingUnitVector.isEqual(fromPlaneToSphereUnitVector, PRECISION / 2)) {
@@ -533,6 +536,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 													/* Or, sphere does not intersect plane and is below the plane -- the pointing vector of plane and vector from plane to sphere center are inverted (not equal). */
 													impactMass = null;
 													impactCenter = null;
+													contributeFocusedDebug(2, xX, yY, zZ, i, "(BEHIND ACCEL)", sphereMass[i], Apfloat.ZERO, sphereCenter[i], ZEROVECTOR, sphereRadius[i], Apfloat.ZERO, rindlerHorizonDistance, absCompute_d, centerOfRotationPointingUnitVector);
 												} else {
 													/* b) Compute the portion of the sphere that is above the plane, and include that fraction of mass. */
 													/* Or, we know the sphere is fully outside the rindler horizon and intersects the plane, so find the sphere-plane cap that is above the plane */
@@ -555,7 +559,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																sphereS.y.add(centerOfRotationPointingUnitVector.y.multiply(centroid)),
 																sphereS.z.add(centerOfRotationPointingUnitVector.z.multiply(centroid)));
 														// note above we have to use centerOfRotationPointingUnitVector because the vector of the intersection will be effectively 0.
-														
+														contributeFocusedDebug(3, xX, yY, zZ, i, "(HALF ACCEL)", sphereMass[i], impactMass, sphereCenter[i], impactCenter, sphereRadius[i], intersectRadius, rindlerHorizonDistance, absCompute_d, centerOfRotationPointingUnitVector);
 													} else {
 														/*
 														 * OK: we can use the angle between fromPlaneToSphereUnitVector and centerOfRotationPointingUnitVector
@@ -590,16 +594,18 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 															pathsUsed[4].incrementAndGet(); paths.append(",4");
 															// move along unit vector
 															impactCenter = new Location(
-																	sphereS.x.add(fromPlaneToSphereUnitVector.x.multiply(centroid)),
-																	sphereS.y.add(fromPlaneToSphereUnitVector.y.multiply(centroid)),
-																	sphereS.z.add(fromPlaneToSphereUnitVector.z.multiply(centroid)));
+																	sphereS.x.add(centerOfRotationPointingUnitVector.x.multiply(centroid)),
+																	sphereS.y.add(centerOfRotationPointingUnitVector.y.multiply(centroid)),
+																	sphereS.z.add(centerOfRotationPointingUnitVector.z.multiply(centroid)));
+															contributeFocusedDebug(4, xX, yY, zZ, i, "(LARGECAP ACCEL)", sphereMass[i], impactMass, sphereCenter[i], impactCenter, sphereRadius[i], intersectRadius, rindlerHorizonDistance, absCompute_d, centerOfRotationPointingUnitVector);
 														} else {
 															pathsUsed[5].incrementAndGet(); paths.append(",5");
 															// move against unit vector.
 															impactCenter = new Location(
-																	sphereS.x.subtract(fromPlaneToSphereUnitVector.x.multiply(centroid)), // distance from sphere center; we use the inverse of the unit vector but reduce to subtraction.
-																	sphereS.y.subtract(fromPlaneToSphereUnitVector.y.multiply(centroid)),
-																	sphereS.z.subtract(fromPlaneToSphereUnitVector.z.multiply(centroid)));
+																	sphereS.x.add(centerOfRotationPointingUnitVector.x.multiply(centroid)), // distance from sphere center
+																	sphereS.y.add(centerOfRotationPointingUnitVector.y.multiply(centroid)),
+																	sphereS.z.add(centerOfRotationPointingUnitVector.z.multiply(centroid)));
+															contributeFocusedDebug(5, xX, yY, zZ, i, "(SMALLCAP ACCEL)", sphereMass[i], impactMass, sphereCenter[i], impactCenter, sphereRadius[i], intersectRadius, rindlerHorizonDistance, absCompute_d, centerOfRotationPointingUnitVector);
 														}
 													}
 		
@@ -661,13 +667,14 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 													 */
 													impactMass = lensMass;
 													impactCenter = lensCenter;
-													contributeDebug("(FULL LENS) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s", 6, xX, yY, zZ, i, 
+													/*contributeDebug("(FULL LENS) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s", 6, xX, yY, zZ, i, 
 															smallSphereRadius.precision(20),
 															bigSphereRadius.precision(20),
 															lensVolume.precision(20),
 															lensMass.precision(20),
 															lensCircleRadius.precision(20),
-															lensCenterOffset.precision(20));
+															lensCenterOffset.precision(20));*/
+													contributeFocusedDebug(6, xX, yY, zZ, i, "(FULL LENS)", sphereMass[i], impactMass, sphereCenter[i], impactCenter, sphereRadius[i], lensCircleRadius, rindlerHorizonDistance, absCompute_d, centerOfRotationPointingUnitVector);
 												} else {
 													// just to reinforce, if we're here, sphere is intersecting with plane (definitely not above, definitely not fully below, so definitely "intersected with")
 													// AND, not fully outside, and not fully within, rindler horizon, but inbetween.
@@ -728,7 +735,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 														// here we just use the cap of the sphere that is above the plane.
 														addMass = null;
 														addCenter = null;
-														contributeDebug("(NO ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s [[%s <= %s && <%s,%s,%s> == <%s,%s,%s>]]", 7, xX, yY, zZ, i, 
+														/*contributeDebug("(NO ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s [[%s <= %s && <%s,%s,%s> == <%s,%s,%s>]]", 7, xX, yY, zZ, i, 
 																smallSphereRadius.precision(20),
 																bigSphereRadius.precision(20),
 																lensVolume.precision(20),
@@ -738,7 +745,8 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																lensCircleRadius.precision(20),
 																equivAbsCompute_d.precision(20),
 																centerOfRotationPointingUnitVector.x.precision(20), centerOfRotationPointingUnitVector.y.precision(20), centerOfRotationPointingUnitVector.z.precision(20),
-																fromPlaneToEquivUnitVector.x.precision(20), fromPlaneToEquivUnitVector.y.precision(20), fromPlaneToEquivUnitVector.z.precision(20));
+																fromPlaneToEquivUnitVector.x.precision(20), fromPlaneToEquivUnitVector.y.precision(20), fromPlaneToEquivUnitVector.z.precision(20));*/
+														contributeFocusedDebug(7, xX, yY, zZ, i, "(ADD NO LENS)", sphereMass[i], Apfloat.ZERO, sphereCenter[i], ZEROVECTOR, sphereRadius[i], lensCircleRadius, rindlerHorizonDistance, equivAbsCompute_d, centerOfRotationPointingUnitVector);
 													} else if (lensCircleRadius.compareTo(equivAbsCompute_d) <= 0 && !centerOfRotationPointingUnitVector.isEqual(fromPlaneToEquivUnitVector, PRECISION / 2)) {
 														pathsUsed[8].incrementAndGet(); paths.append(",8");
 														/* If lensesphere is fully below plane, include all its mass. */
@@ -748,7 +756,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 														// so do lens mass and cap mass, with center of mass being the centroid of them.
 														addMass = lensMass;
 														addCenter = lensCenter;
-														contributeDebug("(LENS ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCenter <%s,%s,%s> lensCircleRadius %s lensCenterOffset %s [[%s <= %s && <%s,%s,%s> != <%s,%s,%s>]]", 8, xX, yY, zZ, i, 
+														/*contributeDebug("(LENS ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCenter <%s,%s,%s> lensCircleRadius %s lensCenterOffset %s [[%s <= %s && <%s,%s,%s> != <%s,%s,%s>]]", 8, xX, yY, zZ, i, 
 																smallSphereRadius.precision(20),
 																bigSphereRadius.precision(20),
 																lensVolume.precision(20),
@@ -761,7 +769,8 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																lensCircleRadius.precision(20),
 																equivAbsCompute_d.precision(20),
 																centerOfRotationPointingUnitVector.x.precision(20), centerOfRotationPointingUnitVector.y.precision(20), centerOfRotationPointingUnitVector.z.precision(20),
-																fromPlaneToEquivUnitVector.x.precision(20), fromPlaneToEquivUnitVector.y.precision(20), fromPlaneToEquivUnitVector.z.precision(20));
+																fromPlaneToEquivUnitVector.x.precision(20), fromPlaneToEquivUnitVector.y.precision(20), fromPlaneToEquivUnitVector.z.precision(20));*/
+														contributeFocusedDebug(8, xX, yY, zZ, i, "(ADD FULL LENS)", sphereMass[i], addMass, sphereCenter[i], addCenter, sphereRadius[i], lensCircleRadius, rindlerHorizonDistance, equivAbsCompute_d, centerOfRotationPointingUnitVector);
 													} else {
 														/* lens sphere intersects with plane; we include the portion of mass below the plane.
 														/* Compute the portion of the equivsphere that is below the plane, and include that fraction of mass. */
@@ -786,7 +795,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																	lensCenter.z.subtract(centerOfRotationPointingUnitVector.z.multiply(centroid)));
 															// we use centerOfRotationPointingUnitVector because the fromPlaneToEquivUnitVector will be effectively zero.
 
-															contributeDebug("(HALF LENS ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s equivCompute_d %s intersectEquivRadius %s [[%s == %s]] .. [[%s, %s, <%s,%s,%s>]]", 9, xX, yY, zZ, i, 
+															/*contributeDebug("(HALF LENS ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s equivCompute_d %s intersectEquivRadius %s [[%s == %s]] .. [[%s, %s, <%s,%s,%s>]]", 9, xX, yY, zZ, i, 
 																	smallSphereRadius.precision(20),
 																	bigSphereRadius.precision(20),
 																	lensVolume.precision(20),
@@ -799,7 +808,9 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																	lensCircleRadius.precision(20),
 																	addMass.precision(20),
 																	centroid.precision(20),
-																	addCenter.x.precision(20), addCenter.y.precision(20), addCenter.z.precision(20));
+																	addCenter.x.precision(20), addCenter.y.precision(20), addCenter.z.precision(20));*/
+															
+															contributeFocusedDebug(9, xX, yY, zZ, i, "(ADD HALF LENS)", sphereMass[i], addMass, sphereCenter[i], addCenter, lensCircleRadius, intersectEquivRadius, rindlerHorizonDistance, equivAbsCompute_d, centerOfRotationPointingUnitVector);
 														} else {
 															/*
 															 * OK: we can use the angle between fromPlaneToSphereUnitVector and centerOfRotationPointingUnitVector
@@ -838,11 +849,11 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																pathsUsed[10].incrementAndGet(); paths.append(",10");
 																// moving against the planetoequivunitvector 
 																addCenter = new Location(
-																		lensCenter.x.subtract(fromPlaneToEquivUnitVector.x.multiply(centroid)), // distance from sphere center; we use the inverse of the unit vector but reduce to subtraction.
-																		lensCenter.y.subtract(fromPlaneToEquivUnitVector.y.multiply(centroid)),
-																		lensCenter.z.subtract(fromPlaneToEquivUnitVector.z.multiply(centroid)));
+																		lensCenter.x.subtract(centerOfRotationPointingUnitVector.x.multiply(centroid)), // distance from sphere center; we use the inverse of the unit vector but reduce to subtraction.
+																		lensCenter.y.subtract(centerOfRotationPointingUnitVector.y.multiply(centroid)),
+																		lensCenter.z.subtract(centerOfRotationPointingUnitVector.z.multiply(centroid)));
 																
-																contributeDebug("(SMALL LENS ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s equivCompute_d %s intersectEquivRadius %s height %s volume %s EQUIV [[%s, %s, <%s,%s,%s>]]", 10, xX, yY, zZ, i, 
+																/*contributeDebug("(SMALL LENS ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s equivCompute_d %s intersectEquivRadius %s height %s volume %s EQUIV [[%s, %s, <%s,%s,%s>]]", 10, xX, yY, zZ, i, 
 																		smallSphereRadius.precision(20),
 																		bigSphereRadius.precision(20),
 																		lensVolume.precision(20),
@@ -855,16 +866,17 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																		volume.precision(20),
 																		addMass.precision(20),
 																		centroid.precision(20),
-																		addCenter.x.precision(20), addCenter.y.precision(20), addCenter.z.precision(20));
+																		addCenter.x.precision(20), addCenter.y.precision(20), addCenter.z.precision(20));*/
+																contributeFocusedDebug(10, xX, yY, zZ, i, "(ADD SMALL LENS)", sphereMass[i], addMass, sphereCenter[i], addCenter, lensCircleRadius, intersectEquivRadius, rindlerHorizonDistance, equivAbsCompute_d, centerOfRotationPointingUnitVector);
 															} else {
 																pathsUsed[11].incrementAndGet(); paths.append(",11");
 																// moving with the planetoequivunitvector 
 																addCenter = new Location(
-																		lensCenter.x.add(fromPlaneToEquivUnitVector.x.multiply(centroid)), // distance from sphere center; we use the unit vector.
-																		lensCenter.y.add(fromPlaneToEquivUnitVector.y.multiply(centroid)),
-																		lensCenter.z.add(fromPlaneToEquivUnitVector.z.multiply(centroid)));														
+																		lensCenter.x.subtract(centerOfRotationPointingUnitVector.x.multiply(centroid)), // distance from sphere center; we use the unit vector.
+																		lensCenter.y.subtract(centerOfRotationPointingUnitVector.y.multiply(centroid)),
+																		lensCenter.z.subtract(centerOfRotationPointingUnitVector.z.multiply(centroid)));														
 
-																contributeDebug("(LARGE LENS ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s equivCompute_d %s intersectEquivRadius %s height %s volume %s NONEQUIV [[%s, %s, <%s,%s,%s>]]", 11, xX, yY, zZ, i, 
+																/*contributeDebug("(LARGE LENS ADD) smallRadius %s bigRadius %s lensVolume %s lensMass %s lensCircleRadius %s lensCenterOffset %s equivCompute_d %s intersectEquivRadius %s height %s volume %s NONEQUIV [[%s, %s, <%s,%s,%s>]]", 11, xX, yY, zZ, i, 
 																		smallSphereRadius.precision(20),
 																		bigSphereRadius.precision(20),
 																		lensVolume.precision(20),
@@ -877,7 +889,8 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																		volume.precision(20),
 																		addMass.precision(20),
 																		centroid.precision(20),
-																		addCenter.x.precision(20), addCenter.y.precision(20), addCenter.z.precision(20));
+																		addCenter.x.precision(20), addCenter.y.precision(20), addCenter.z.precision(20));*/
+																contributeFocusedDebug(11, xX, yY, zZ, i, "(ADD LARGE LENS)", sphereMass[i], addMass, sphereCenter[i], addCenter, lensCircleRadius, intersectEquivRadius, rindlerHorizonDistance, equivAbsCompute_d, centerOfRotationPointingUnitVector);
 															}
 														}
 		
@@ -910,15 +923,15 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																sphereS.z.add(centerOfRotationPointingUnitVector.z.multiply(centroid)));
 														// note above we have to use centerOfRotationPointingUnitVector because the vector of the intersection will be effectively 0.
 
-														contributeDebug("(HALF CAP) sphereRSq %s compute_d %s [[ %s == %s ]] .. [[%s, %s, <%s,%s,%s>]]", 12, xX, yY, zZ, i, 
+														/*contributeDebug("(HALF CAP) sphereRSq %s compute_d %s [[ %s == %s ]] .. [[%s, %s, <%s,%s,%s>]]", 12, xX, yY, zZ, i, 
 																sphereRSq.precision(20),
 																compute_d.precision(20),
 																intersectRadius.precision(20),
 																sphereRadius[i].precision(20),
 																capMass.precision(20),
 																centroid.precision(20),
-																capCenter.x.precision(20), capCenter.y.precision(20), capCenter.z.precision(20));
-
+																capCenter.x.precision(20), capCenter.y.precision(20), capCenter.z.precision(20));*/
+														contributeFocusedDebug(12, xX, yY, zZ, i, "(ADD HALF CAP)", sphereMass[i], capMass, sphereCenter[i], capCenter, sphereRadius[i], intersectRadius, rindlerHorizonDistance, equivAbsCompute_d, centerOfRotationPointingUnitVector);
 													} else {
 														/*
 														 * OK: we can use the angle between fromPlaneToSphereUnitVector and centerOfRotationPointingUnitVector
@@ -953,34 +966,36 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 															pathsUsed[13].incrementAndGet(); paths.append(",13");
 															// move along unit vector
 															capCenter = new Location(
-																	sphereS.x.add(fromPlaneToSphereUnitVector.x.multiply(centroid)),
-																	sphereS.y.add(fromPlaneToSphereUnitVector.y.multiply(centroid)),
-																	sphereS.z.add(fromPlaneToSphereUnitVector.z.multiply(centroid)));
+																	sphereS.x.add(centerOfRotationPointingUnitVector.x.multiply(centroid)),
+																	sphereS.y.add(centerOfRotationPointingUnitVector.y.multiply(centroid)),
+																	sphereS.z.add(centerOfRotationPointingUnitVector.z.multiply(centroid)));
 															
-															contributeDebug("(LARGE CAP) height %s fromPlaneToSphere %s sphereRadius %s volume %s EQUIV [[%s, %s, <%s,%s,%s>]]", 13, xX, yY, zZ, i, 
+															/*contributeDebug("(LARGE CAP) height %s fromPlaneToSphere %s sphereRadius %s volume %s EQUIV [[%s, %s, <%s,%s,%s>]]", 13, xX, yY, zZ, i, 
 																	height.precision(20),
 																	fromPlaneToSphere.magnitude.precision(20),
 																	sphereRadius[i].precision(20),
 																	volume.precision(20),
 																	capMass.precision(20),
 																	centroid.precision(20),
-																	capCenter.x.precision(20), capCenter.y.precision(20), capCenter.z.precision(20));
+																	capCenter.x.precision(20), capCenter.y.precision(20), capCenter.z.precision(20));*/
+															contributeFocusedDebug(13, xX, yY, zZ, i, "(ADD LARGE CAP)", sphereMass[i], capMass, sphereCenter[i], capCenter, sphereRadius[i], intersectRadius, rindlerHorizonDistance, equivAbsCompute_d, centerOfRotationPointingUnitVector);
 														} else {
 															pathsUsed[14].incrementAndGet(); paths.append(",14");
 															// move against unit vector.
 															capCenter = new Location(
-																	sphereS.x.subtract(fromPlaneToSphereUnitVector.x.multiply(centroid)), // distance from sphere center; we use the inverse of the unit vector but reduce to subtraction.
-																	sphereS.y.subtract(fromPlaneToSphereUnitVector.y.multiply(centroid)),
-																	sphereS.z.subtract(fromPlaneToSphereUnitVector.z.multiply(centroid)));
+																	sphereS.x.add(centerOfRotationPointingUnitVector.x.multiply(centroid)), // distance from sphere center; we use the inverse of the unit vector but reduce to subtraction.
+																	sphereS.y.add(centerOfRotationPointingUnitVector.y.multiply(centroid)),
+																	sphereS.z.add(centerOfRotationPointingUnitVector.z.multiply(centroid)));
 
-															contributeDebug("(SMALL CAP) height %s fromPlaneToSphere %s sphereRadius %s volume %s NOTEQUIV [[%s, %s, <%s,%s,%s>]]", 14, xX, yY, zZ, i, 
+															/*contributeDebug("(SMALL CAP) height %s fromPlaneToSphere %s sphereRadius %s volume %s NOTEQUIV [[%s, %s, <%s,%s,%s>]]", 14, xX, yY, zZ, i, 
 																	height.precision(20),
 																	fromPlaneToSphere.magnitude.precision(20),
 																	sphereRadius[i].precision(20),
 																	volume.precision(20),
 																	capMass.precision(20),
 																	centroid.precision(20),
-																	capCenter.x.precision(20), capCenter.y.precision(20), capCenter.z.precision(20));
+																	capCenter.x.precision(20), capCenter.y.precision(20), capCenter.z.precision(20));*/
+															contributeFocusedDebug(14, xX, yY, zZ, i, "(ADD SMALL CAP)", sphereMass[i], capMass, sphereCenter[i], capCenter, sphereRadius[i], intersectRadius, rindlerHorizonDistance, equivAbsCompute_d, centerOfRotationPointingUnitVector);
 														}
 													}
 													
@@ -989,6 +1004,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 														pathsUsed[15].incrementAndGet(); paths.append(",15");
 														impactMass = capMass;
 														impactCenter = capCenter;
+														contributeFocusedDebug(15, xX, yY, zZ, i, "(ONLY CAP)", sphereMass[i], impactMass, sphereCenter[i], impactCenter, sphereRadius[i], Apfloat.ZERO, rindlerHorizonDistance, Apfloat.ZERO, centerOfRotationPointingUnitVector);
 													} else {
 														pathsUsed[16].incrementAndGet(); paths.append(",16");
 														/*
@@ -1002,9 +1018,10 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 																(capMass.multiply(capCenter.z).add(addMass.multiply(addCenter.z))).divide(impactMass)
 															);
 														
-														contributeDebug("(MERGED CAP LENS) [[%s, <%s,%s,%s>]]", 16, xX, yY, zZ, i, 
+														/*contributeDebug("(MERGED CAP LENS) [[%s, <%s,%s,%s>]]", 16, xX, yY, zZ, i, 
 																impactMass.precision(20),
-																impactCenter.x.precision(20), impactCenter.y.precision(20), impactCenter.z.precision(20));
+																impactCenter.x.precision(20), impactCenter.y.precision(20), impactCenter.z.precision(20));*/
+														contributeFocusedDebug(16, xX, yY, zZ, i, "(MERGE LENS CAP)", sphereMass[i], impactMass, sphereCenter[i], impactCenter, sphereRadius[i], Apfloat.ZERO, rindlerHorizonDistance, Apfloat.ZERO, centerOfRotationPointingUnitVector);
 
 													}
 												}
@@ -1034,7 +1051,7 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 	}
 	
 	public void showFinalProgress() {
-		int z = 0;
+		//int z = 0;
 		/*for (int x = (int) -stepsOnEdge; x < stepsOnEdge; x++) {
 			System.out.print("[");
 			for (int y = (int) -stepsOnEdge; y < stepsOnEdge; y++) {
@@ -1066,12 +1083,31 @@ public class RindlerHorizonHidingViaAngularMotion implements Runnable {
 		}
 	}
 
-	private synchronized void contributeDebug(String format, int path, int x, int y, int z, int i, Apfloat ...values ) {
+	/*private synchronized void contributeDebug(String format, int path, int x, int y, int z, int i, Apfloat ...values ) {
 		if (QIPlatform.debugFile != null) {
-			QIPlatform.debugFile.print(String.format("%2d,%3d,%3d,%3d,%1d, ", path, x, y, z, i));
-			QIPlatform.debugFile.println(String.format(format, (Object[]) values));
+			QIPlatform.debugFile.print(String.format("%2d,%3d,%3d,%3d,%1d, \"", path, x, y, z, i));
+			QIPlatform.debugFile.println(String.format(format, (Object[]) values) + "\"");
+		}
+	}*/
+	
+	boolean firstFocusedDebug = true;
+	private synchronized void contributeFocusedDebug(int path, int x, int y, int z, int i, String desc, 
+			Apfloat sphereMass, Apfloat stepMass, Location sphereCenter, Location stepCenter, Apfloat sphereRadius, Apfloat stepRadius, Apfloat rindlerHorizon, Apfloat horizonDistance, Location accelHorizonDirection) {
+		if (QIPlatform.debugFile != null) {
+			if (firstFocusedDebug) {
+				QIPlatform.debugFile.println("Path, x, y, z, obj, Desc, Sphere Mass, Step Mass, Sphere Center, Step Center, Sphere Radius, Step Radius, Rindler Radius, Step Horizon Distance, Step Horizon Direction");
+				firstFocusedDebug = false;
+			}
+			//QIPlatform.debugFile.println(String.format("%2d,%3d,%3d,%3d,%1d,%s,(SPHERE;STEP) MASS(%s;%s) CENTER(<%s|%s|%s>;<%s|%s|%s>) %s, %s HORIZON (%s;%s,<%s|%s|%s>)", path, x, y, z, i, desc,
+			QIPlatform.debugFile.println(String.format("%2d,%3d,%3d,%3d,%1d,%s,%s,%s,<%s|%s|%s>,<%s|%s|%s>,%s,%s,%s,%s,<%s|%s|%s>", path, x, y, z, i, desc,
+				sphereMass.precision(10), stepMass.precision(10), 
+				sphereCenter.x.precision(10), sphereCenter.y.precision(10), sphereCenter.z.precision(10), 
+				stepCenter.x.precision(10), stepCenter.y.precision(10), stepCenter.z.precision(10),
+				sphereRadius.precision(10), stepRadius.precision(10),
+				rindlerHorizon.precision(10), horizonDistance.precision(10), accelHorizonDirection.x.precision(10), accelHorizonDirection.y.precision(10), accelHorizonDirection.z.precision(10)));
 		}
 	}
+	
 	
 	private synchronized void contributeAcceleration(final int x, final int y, final int z, String paths, final Location midPoint, int i, Apfloat impactMass, Location impactCenter) {
 		// sum up the mass!

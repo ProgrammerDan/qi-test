@@ -314,6 +314,8 @@ public class QIPlatform {
 	
 	public class QIVisualization extends JPanel implements MouseListener {
 		
+		private static final long serialVersionUID = 61L;
+		
 		private int border;
 		private int expansion;
 		private int panel;
